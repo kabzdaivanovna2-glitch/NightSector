@@ -27,3 +27,4 @@ client.on('messageCreate', (message) => {
 });
 
 client.login(TOKEN);
+console.log("TOKEN:", process.env.TOKEN);
