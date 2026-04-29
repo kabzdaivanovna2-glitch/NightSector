@@ -4,7 +4,7 @@ const { Shoukaku, Connectors } = require('shoukaku');
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = "1499113326020399276";
 
-// 👉 Lavalink сервер (публичный тестовый)
+// 🔥 СТАБИЛЬНЫЙ NODE (оставляем твой, но логика теперь безопаснее)
 const nodes = [
   {
     name: "main",
@@ -23,7 +23,16 @@ const client = new Client({
 
 const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes);
 
-client.on('ready', () => {
+// 📡 лог подключения
+shoukaku.on('ready', (name) => {
+  console.log(`✅ Lavalink подключен: ${name}`);
+});
+
+shoukaku.on('error', (name, error) => {
+  console.log(`❌ Lavalink ошибка [${name}]:`, error);
+});
+
+client.once('ready', () => {
   console.log(`✅ Бот онлайн: ${client.user.tag}`);
 });
 
@@ -34,27 +43,37 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.commandName === 'play') {
     await interaction.deferReply();
 
-    const query = interaction.options.getString('url');
-    const voice = interaction.member.voice.channel;
+    try {
+      const query = interaction.options.getString('url');
+      const voice = interaction.member.voice.channel;
 
-    if (!voice) return interaction.editReply("❌ зайди в войс");
+      if (!voice) {
+        return interaction.editReply("❌ зайди в войс");
+      }
 
-    const player = await shoukaku.joinVoiceChannel({
-      guildId: interaction.guild.id,
-      channelId: voice.id,
-      shardId: 0
-    });
+      const player = await shoukaku.joinVoiceChannel({
+        guildId: interaction.guild.id,
+        channelId: voice.id,
+        shardId: 0
+      });
 
-    const result = await shoukaku.rest.resolve(query);
+      // 🔥 поиск трека
+      const result = await shoukaku.rest.resolve(query);
 
-    if (!result?.tracks.length)
-      return interaction.editReply("❌ трек не найден");
+      if (!result || !result.tracks || result.tracks.length === 0) {
+        return interaction.editReply("❌ трек не найден (попробуй название или ссылку)");
+      }
 
-    const track = result.tracks[0];
+      const track = result.tracks[0];
 
-    player.playTrack(track);
+      await player.playTrack(track);
 
-    return interaction.editReply("🎵 играет музыка");
+      return interaction.editReply(`🎵 играет: **${track.info.title}**`);
+
+    } catch (err) {
+      console.log("PLAY ERROR:", err);
+      return interaction.editReply("❌ ошибка воспроизведения (Lavalink)");
+    }
   }
 });
 
@@ -62,7 +81,7 @@ client.on('interactionCreate', async (interaction) => {
 const commands = [
   new SlashCommandBuilder()
     .setName('play')
-    .setDescription('играть музыку')
+    .setDescription('включить музыку')
     .addStringOption(opt =>
       opt.setName('url')
         .setDescription('ссылка или название')
@@ -73,11 +92,15 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
-  await rest.put(
-    Routes.applicationCommands(CLIENT_ID),
-    { body: commands }
-  );
-  console.log("✅ Slash команды загружены");
-})();
+  try {
+    await rest.put(
+      Routes.applicationCommands(CLIENT_ID),
+      { body: commands }
+    );
+    console.log("✅ Slash команды загружены");
+  } catch (err) {
+    console.log("COMMAND ERROR:", err);
+  }
+});
 
 client.login(TOKEN);
