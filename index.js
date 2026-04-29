@@ -14,23 +14,29 @@ const { Shoukaku, Connectors } = require("shoukaku");
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID || "1499113326020399276";
 
-// ================= ИСПРАВЛЕННЫЙ СПИСОК LAVALINK УЗЛОВ (рабочие) =================
+// ================= НОВЫЙ СПИСОК LAVALINK УЗЛОВ (АКТУАЛЬНЫЙ) =================
 const nodes = [
   {
     name: "Node 1",
-    url: "lavalink-v4.radiopanel.dev:80",
-    auth: "dasgamer",
-    secure: false
-  },
-  {
-    name: "Node 2",
     url: "lava-v4.rauf.wtf:2333",
     auth: "https://discord.gg/zZJhGjUuUN",
     secure: false
   },
   {
+    name: "Node 2",
+    url: "lavalink-v4.radiopanel.dev:80",
+    auth: "dasgamer",
+    secure: false
+  },
+  {
     name: "Node 3",
-    url: "lavalink.vac14.tk:80",
+    url: "lavalink.kazury.cc:2333",
+    auth: "youshallnotpass",
+    secure: false
+  },
+  {
+    name: "Node 4",
+    url: "lavalink.devamir.in:2333",
     auth: "youshallnotpass",
     secure: false
   }
