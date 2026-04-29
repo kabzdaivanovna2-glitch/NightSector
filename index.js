@@ -1,10 +1,21 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
-const { Shoukaku, Connectors } = require('shoukaku');
+const {
+  Client,
+  GatewayIntentBits,
+  REST,
+  Routes,
+  SlashCommandBuilder,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require("discord.js");
+
+const { Shoukaku, Connectors } = require("shoukaku");
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = "1499113326020399276";
 
-// ⚠️ ВРЕМЕННОЙ NODE (если он мёртв — всё равно будет ошибка, но бот не упадёт)
+// 🔥 Lavalink (может быть заменён позже на свой)
 const nodes = [
   {
     name: "main",
@@ -23,80 +34,138 @@ const client = new Client({
 
 const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes);
 
-// 📡 статус Lavalink
-shoukaku.on("ready", () => {
-  console.log("✅ Lavalink подключен");
-});
+// 🎧 QUEUE
+const queue = new Map();
 
-shoukaku.on("error", (name, err) => {
-  console.log("❌ Lavalink error:", err.message || err);
-});
-
+// ================= READY =================
 client.once("ready", () => {
-  console.log(`✅ Bot online: ${client.user.tag}`);
+  console.log(`🌙 NightSector Online: ${client.user.tag}`);
 });
 
-// 🎵 PLAY
+// ================= UI =================
+function nowPlayingEmbed(track, user) {
+  return new EmbedBuilder()
+    .setTitle("🎵 Now Playing")
+    .setDescription(`**${track.info.title}**`)
+    .addFields(
+      { name: "Duration", value: `${Math.floor(track.info.length / 60000)}m`, inline: true },
+      { name: "Requested by", value: user, inline: true }
+    )
+    .setColor("#6a0dad")
+}
+
+// ================= BUTTONS =================
+function controls() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("pause")
+      .setLabel("⏸ Pause")
+      .setStyle(ButtonStyle.Secondary),
+
+    new ButtonBuilder()
+      .setCustomId("resume")
+      .setLabel("▶ Resume")
+      .setStyle(ButtonStyle.Success),
+
+    new ButtonBuilder()
+      .setCustomId("skip")
+      .setLabel("⏭ Skip")
+      .setStyle(ButtonStyle.Primary),
+
+    new ButtonBuilder()
+      .setCustomId("stop")
+      .setLabel("⏹ Stop")
+      .setStyle(ButtonStyle.Danger),
+
+    new ButtonBuilder()
+      .setCustomId("like")
+      .setLabel("❤️ Like")
+      .setStyle(ButtonStyle.Secondary)
+  );
+}
+
+// ================= INTERACTION =================
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
+  const voice = interaction.member.voice.channel;
+
+  // ================= PLAY =================
   if (interaction.commandName === "play") {
     await interaction.deferReply();
 
+    if (!voice) return interaction.editReply("❌ зайди в войс");
+
     const query = interaction.options.getString("url");
-    const voice = interaction.member.voice.channel;
 
-    if (!voice) {
-      return interaction.editReply("❌ зайди в войс");
-    }
+    const player = await shoukaku.joinVoiceChannel({
+      guildId: interaction.guild.id,
+      channelId: voice.id,
+      shardId: 0
+    });
 
-    let player;
+    const result = await shoukaku.rest.resolve(`ytsearch:${query}`);
 
-    try {
-      player = await shoukaku.joinVoiceChannel({
-        guildId: interaction.guild.id,
-        channelId: voice.id,
-        shardId: 0
-      });
-    } catch (e) {
-      console.log("VOICE JOIN ERROR:", e);
-      return interaction.editReply("❌ не удалось зайти в войс (Lavalink не отвечает)");
-    }
-
-    let result;
-
-    try {
-      result = await shoukaku.rest.resolve(`ytsearch:${query}`);
-    } catch (e) {
-      console.log("RESOLVE ERROR:", e);
-      return interaction.editReply("❌ поиск трека не работает (Lavalink)");
-    }
-
-    if (!result?.tracks?.length) {
+    if (!result?.tracks?.length)
       return interaction.editReply("❌ трек не найден");
-    }
 
     const track = result.tracks[0];
 
-    try {
-      await player.playTrack(track);
-    } catch (e) {
-      console.log("PLAY ERROR:", e);
-      return interaction.editReply("❌ ошибка воспроизведения (сервер недоступен)");
+    queue.set(interaction.guild.id, {
+      player,
+      track
+    });
+
+    await player.playTrack(track);
+
+    return interaction.editReply({
+      embeds: [nowPlayingEmbed(track, interaction.user.tag)],
+      components: [controls()]
+    });
+  }
+
+  // ================= BUTTONS =================
+  if (interaction.isButton()) {
+    const server = queue.get(interaction.guild.id);
+    if (!server) return interaction.reply({ content: "❌ ничего не играет", ephemeral: true });
+
+    const player = server.player;
+
+    if (interaction.customId === "pause") {
+      await player.setPaused(true);
+      return interaction.reply("⏸ paused");
     }
 
-    return interaction.editReply(`🎵 играет: **${track.info.title}**`);
+    if (interaction.customId === "resume") {
+      await player.setPaused(false);
+      return interaction.reply("▶ resumed");
+    }
+
+    if (interaction.customId === "skip") {
+      await player.stopTrack();
+      return interaction.reply("⏭ skipped");
+    }
+
+    if (interaction.customId === "stop") {
+      await player.destroy();
+      queue.delete(interaction.guild.id);
+      return interaction.reply("⏹ stopped");
+    }
+
+    if (interaction.customId === "like") {
+      return interaction.reply("❤️ added to likes");
+    }
   }
 });
 
-// slash command
+// ================= SLASH =================
 const commands = [
   new SlashCommandBuilder()
     .setName("play")
-    .setDescription("музыка")
+    .setDescription("play music")
     .addStringOption(o =>
       o.setName("url")
-        .setDescription("название или ссылка")
+        .setDescription("song or link")
         .setRequired(true)
     )
 ].map(c => c.toJSON());
@@ -104,15 +173,11 @@ const commands = [
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 (async () => {
-  try {
-    await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
-      { body: commands }
-    );
-    console.log("✅ slash готов");
-  } catch (e) {
-    console.log("SLASH ERROR:", e);
-  }
+  await rest.put(
+    Routes.applicationCommands(CLIENT_ID),
+    { body: commands }
+  );
+  console.log("✅ NightSector commands loaded");
 })();
 
 client.login(TOKEN);
