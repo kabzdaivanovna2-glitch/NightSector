@@ -1,18 +1,17 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
-const { Shoukaku, Connectors } = require('shoukaku');
+const {
+  joinVoiceChannel,
+  createAudioPlayer,
+  createAudioResource,
+  AudioPlayerStatus,
+  NoSubscriberBehavior,
+  StreamType
+} = require('@discordjs/voice');
+
+const play = require('play-dl');
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = "1499113326020399276";
-
-/* 🔥 СТАБИЛЬНЫЙ NODE (замена) */
-const nodes = [
-  {
-    name: "main",
-    url: "lava.link:80",
-    auth: "youshallnotpass",
-    secure: false
-  }
-];
 
 const client = new Client({
   intents: [
@@ -21,54 +20,65 @@ const client = new Client({
   ]
 });
 
-const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes);
-
-// 📡 Lavalink events
-shoukaku.on('ready', (name) => {
-  console.log(`✅ Lavalink подключен: ${name}`);
-});
-
-shoukaku.on('error', (name, error) => {
-  console.log(`❌ Lavalink ошибка [${name}]:`, error);
-});
-
 client.once('ready', () => {
   console.log(`✅ Бот онлайн: ${client.user.tag}`);
 });
 
-// 🎵 PLAY COMMAND
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'play') {
     await interaction.deferReply();
 
+    const query = interaction.options.getString('url');
+    const voice = interaction.member.voice.channel;
+
+    if (!voice) {
+      return interaction.editReply("❌ зайди в войс");
+    }
+
     try {
-      const query = interaction.options.getString('url');
-      const voice = interaction.member.voice.channel;
-
-      if (!voice) {
-        return interaction.editReply("❌ зайди в войс");
-      }
-
-      const player = await shoukaku.joinVoiceChannel({
-        guildId: interaction.guild.id,
+      const connection = joinVoiceChannel({
         channelId: voice.id,
-        shardId: 0
+        guildId: interaction.guild.id,
+        adapterCreator: interaction.guild.voiceAdapterCreator
       });
 
-      /* 🔥 ВАЖНО: теперь правильный поиск */
-      const result = await shoukaku.rest.resolve(`ytsearch:${query}`);
+      // 🔥 ИСПРАВЛЕННЫЙ ПОЛУЧАТЕЛЬ АУДИО
+      let streamData;
 
-      if (!result?.tracks?.length) {
-        return interaction.editReply("❌ трек не найден");
+      try {
+        const search = await play.search(query, { limit: 1 });
+
+        if (!search.length) {
+          return interaction.editReply("❌ трек не найден");
+        }
+
+        streamData = await play.stream(search[0].url);
+
+      } catch (e) {
+        console.log("STREAM ERROR:", e);
+        return interaction.editReply("❌ не удалось загрузить трек");
       }
 
-      const track = result.tracks[0];
+      const resource = createAudioResource(streamData.stream, {
+        inputType: StreamType.Arbitrary
+      });
 
-      await player.playTrack(track);
+      const player = createAudioPlayer({
+        behaviors: {
+          noSubscriber: NoSubscriberBehavior.Play
+        }
+      });
 
-      return interaction.editReply(`🎵 играет: **${track.info.title}**`);
+      player.play(resource);
+      connection.subscribe(player);
+
+      player.on(AudioPlayerStatus.Idle, () => {
+        connection.destroy();
+      });
+
+      return interaction.editReply(`🎵 играет: **${search[0].title}**`);
 
     } catch (err) {
       console.log("PLAY ERROR:", err);
@@ -97,9 +107,9 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       Routes.applicationCommands(CLIENT_ID),
       { body: commands }
     );
-    console.log("✅ Slash команды загружены");
+    console.log("✅ Slash команды зарегистрированы");
   } catch (err) {
-    console.log("COMMAND ERROR:", err);
+    console.log(err);
   }
 });
 
