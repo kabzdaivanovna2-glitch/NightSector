@@ -26,6 +26,6 @@ client.on('messageCreate', (message) => {
   }
 });
 
-client.login(TOKEN);
+client.login(process.env.TOKEN);
 console.log("TOKEN:", process.env.TOKEN);
 console.log("ENV KEYS:", Object.keys(process.env));
