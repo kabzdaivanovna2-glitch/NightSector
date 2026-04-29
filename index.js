@@ -40,18 +40,21 @@ client.on('interactionCreate', async (interaction) => {
         adapterCreator: interaction.guild.voiceAdapterCreator
       });
 
+      // 🔥 ИСПРАВЛЕННЫЙ STREAM (ВАЖНО)
       let stream;
 
       try {
-        stream = await Promise.race([
-          play.stream(url),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("timeout")), 8000)
-          )
-        ]);
+        const info = await play.video_info(url).catch(() => null);
+
+        if (info) {
+          stream = await play.stream_from_info(info.video_details.url);
+        } else {
+          stream = await play.stream(url);
+        }
+
       } catch (e) {
         console.log("STREAM ERROR:", e);
-        return interaction.editReply('❌ не удалось получить аудио');
+        return interaction.editReply('❌ не удалось загрузить трек (ссылка не поддерживается)');
       }
 
       const resource = createAudioResource(stream.stream, {
