@@ -6,10 +6,11 @@ const {
   AudioPlayerStatus,
   NoSubscriberBehavior
 } = require('@discordjs/voice');
+
 const play = require('play-dl');
 
 const TOKEN = process.env.TOKEN;
-const CLIENT_ID = "1499113326020399276"; // ВАЖНО заменить
+const CLIENT_ID = "1499113326020399276";
 
 const client = new Client({
   intents: [
@@ -18,56 +19,59 @@ const client = new Client({
   ]
 });
 
-client.once('ready', () => {
-  console.log(`✅ Онлайн как ${client.user.tag}`);
-});
-
-// 🎵 slash команда /play
+// 🎵 slash команда
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'play') {
-    const url = interaction.options.getString('url');
+    try {
+      const url = interaction.options.getString('url');
 
-    const voiceChannel = interaction.member.voice.channel;
-    if (!voiceChannel) return interaction.reply('❌ зайди в войс');
+      const voiceChannel = interaction.member.voice.channel;
+      if (!voiceChannel) return interaction.reply('❌ зайди в войс');
 
-    const connection = joinVoiceChannel({
-      channelId: voiceChannel.id,
-      guildId: interaction.guild.id,
-      adapterCreator: interaction.guild.voiceAdapterCreator
-    });
+      const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: interaction.guild.id,
+        adapterCreator: interaction.guild.voiceAdapterCreator
+      });
 
-    const stream = await play.stream(url);
-    const resource = createAudioResource(stream.stream, {
-      inputType: stream.type
-    });
+      // 🔥 play-dl сам определяет SoundCloud / YouTube / etc
+      const source = await play.stream(url);
+      const resource = createAudioResource(source.stream, {
+        inputType: source.type
+      });
 
-    const player = createAudioPlayer({
-      behaviors: {
-        noSubscriber: NoSubscriberBehavior.Play
-      }
-    });
+      const player = createAudioPlayer({
+        behaviors: {
+          noSubscriber: NoSubscriberBehavior.Play
+        }
+      });
 
-    player.play(resource);
-    connection.subscribe(player);
+      player.play(resource);
+      connection.subscribe(player);
 
-    interaction.reply('🎵 играю музыку');
+      interaction.reply('🎵 Играю музыку');
 
-    player.on(AudioPlayerStatus.Idle, () => {
-      connection.destroy();
-    });
+      player.on(AudioPlayerStatus.Idle, () => {
+        connection.destroy();
+      });
+
+    } catch (err) {
+      console.log(err);
+      interaction.reply('❌ Ошибка воспроизведения');
+    }
   }
 });
 
-// 🔥 регистрация slash команд
+// 🔥 регистрация slash-команды
 const commands = [
   new SlashCommandBuilder()
     .setName('play')
-    .setDescription('Включить музыку')
+    .setDescription('Играть музыку (YouTube / SoundCloud)')
     .addStringOption(option =>
       option.setName('url')
-        .setDescription('Ссылка YouTube')
+        .setDescription('ссылка на трек')
         .setRequired(true)
     )
 ].map(c => c.toJSON());
@@ -75,11 +79,19 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
-  await rest.put(
-    Routes.applicationCommands(CLIENT_ID),
-    { body: commands }
-  );
-  console.log('✅ Slash команды зарегистрированы');
-})();
+  try {
+    await rest.put(
+      Routes.applicationCommands(CLIENT_ID),
+      { body: commands }
+    );
+    console.log('✅ Slash команды загружены');
+  } catch (e) {
+    console.log(e);
+  }
+});
+
+client.once('ready', () => {
+  console.log(`✅ Онлайн как ${client.user.tag}`);
+});
 
 client.login(TOKEN);
