@@ -19,53 +19,51 @@ const client = new Client({
   ]
 });
 
-// 🎵 slash команда обработка
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
+if (interaction.commandName === 'play') {
+  await interaction.deferReply();
 
-  if (interaction.commandName === 'play') {
-    await interaction.deferReply(); // 🔥 ВАЖНО (фикс "did not respond")
+  const url = interaction.options.getString('url');
 
-    try {
-      const url = interaction.options.getString('url');
-
-      const voiceChannel = interaction.member.voice.channel;
-      if (!voiceChannel) {
-        return interaction.editReply('❌ зайди в войс');
-      }
-
-      const connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId: interaction.guild.id,
-        adapterCreator: interaction.guild.voiceAdapterCreator
-      });
-
-      const source = await play.stream(url);
-
-      const resource = createAudioResource(source.stream, {
-        inputType: source.type
-      });
-
-      const player = createAudioPlayer({
-        behaviors: {
-          noSubscriber: NoSubscriberBehavior.Play
-        }
-      });
-
-      player.play(resource);
-      connection.subscribe(player);
-
-      player.on(AudioPlayerStatus.Idle, () => {
-        connection.destroy();
-      });
-
-      await interaction.editReply('🎵 Играю музыку');
-
-    } catch (err) {
-      console.log(err);
-      await interaction.editReply('❌ Ошибка воспроизведения');
-    }
+  const voiceChannel = interaction.member.voice.channel;
+  if (!voiceChannel) {
+    return interaction.editReply('❌ зайди в войс');
   }
+
+  try {
+    const connection = joinVoiceChannel({
+      channelId: voiceChannel.id,
+      guildId: interaction.guild.id,
+      adapterCreator: interaction.guild.voiceAdapterCreator
+    });
+
+    let source;
+    try {
+      source = await play.stream(url);
+    } catch (e) {
+      console.log("STREAM ERROR:", e);
+      return interaction.editReply('❌ не удалось получить аудио (ссылка не поддерживается)');
+    }
+
+    const resource = createAudioResource(source.stream, {
+      inputType: source.type
+    });
+
+    const player = createAudioPlayer();
+
+    player.play(resource);
+    connection.subscribe(player);
+
+    player.on(AudioPlayerStatus.Idle, () => {
+      connection.destroy();
+    });
+
+    return interaction.editReply('🎵 играет музыка');
+
+  } catch (err) {
+    console.log("PLAY ERROR:", err);
+    return interaction.editReply('❌ ошибка воспроизведения');
+  }
+}
 });
 
 // 🔥 регистрация slash команды
