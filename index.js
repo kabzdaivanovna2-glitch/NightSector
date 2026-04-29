@@ -10,13 +10,19 @@ const client = new Client({
 
 const TOKEN = process.env.TOKEN;
 
-client.on('ready', () => {
-  console.log(`Бот запущен как ${client.user.tag}`);
+client.once('ready', () => {
+  console.log(`✅ Бот запущен как ${client.user.tag}`);
 });
 
 client.on('messageCreate', (message) => {
+  if (message.author.bot) return;
+
   if (message.content === '!ping') {
-    message.reply('pong 🏓');
+    message.reply('🏓 pong');
+  }
+
+  if (message.content === '!hello') {
+    message.reply('Привет 👋 я живой бот');
   }
 });
 
