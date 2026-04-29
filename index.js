@@ -4,13 +4,13 @@ const { Shoukaku, Connectors } = require('shoukaku');
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = "1499113326020399276";
 
-// 🔥 СТАБИЛЬНЫЙ NODE (оставляем твой, но логика теперь безопаснее)
+/* 🔥 СТАБИЛЬНЫЙ NODE (замена) */
 const nodes = [
   {
     name: "main",
-    url: "lavalink.oops.wtf:443",
-    auth: "www.freelavalink.ga",
-    secure: true
+    url: "lava.link:80",
+    auth: "youshallnotpass",
+    secure: false
   }
 ];
 
@@ -23,7 +23,7 @@ const client = new Client({
 
 const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes);
 
-// 📡 лог подключения
+// 📡 Lavalink events
 shoukaku.on('ready', (name) => {
   console.log(`✅ Lavalink подключен: ${name}`);
 });
@@ -57,11 +57,11 @@ client.on('interactionCreate', async (interaction) => {
         shardId: 0
       });
 
-      // 🔥 поиск трека
-      const result = await shoukaku.rest.resolve(query);
+      /* 🔥 ВАЖНО: теперь правильный поиск */
+      const result = await shoukaku.rest.resolve(`ytsearch:${query}`);
 
-      if (!result || !result.tracks || result.tracks.length === 0) {
-        return interaction.editReply("❌ трек не найден (попробуй название или ссылку)");
+      if (!result?.tracks?.length) {
+        return interaction.editReply("❌ трек не найден");
       }
 
       const track = result.tracks[0];
@@ -72,7 +72,7 @@ client.on('interactionCreate', async (interaction) => {
 
     } catch (err) {
       console.log("PLAY ERROR:", err);
-      return interaction.editReply("❌ ошибка воспроизведения (Lavalink)");
+      return interaction.editReply("❌ ошибка воспроизведения");
     }
   }
 });
@@ -84,7 +84,7 @@ const commands = [
     .setDescription('включить музыку')
     .addStringOption(opt =>
       opt.setName('url')
-        .setDescription('ссылка или название')
+        .setDescription('название или ссылка')
         .setRequired(true)
     )
 ].map(c => c.toJSON());
