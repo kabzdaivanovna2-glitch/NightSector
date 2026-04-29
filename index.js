@@ -73,84 +73,65 @@ client.once("ready", () => {
 });
 
 // ================= PLAY =================
-client.on("interactionCreate", async (interaction) => {
+if (interaction.commandName === "play") {
+
+  // ⚠️ СРАЗУ ОТВЕТ (ВАЖНО)
+  await interaction.deferReply().catch(() => {});
+
+  const voice = interaction.member.voice.channel;
+  if (!voice) {
+    return interaction.editReply("❌ зайди в войс").catch(() => {});
+  }
+
+  const query = interaction.options.getString("url");
+
+  let player;
+
   try {
-    if (!interaction.isChatInputCommand()) return;
-
-    if (interaction.commandName !== "play") return;
-
-    await interaction.deferReply();
-
-    const voice = interaction.member.voice.channel;
-    if (!voice) return interaction.editReply("❌ зайди в войс");
-
-    const query = interaction.options.getString("url");
-
-    // 🔥 JOIN VOICE SAFE
-    let player;
-    try {
-      player = await shoukaku.joinVoiceChannel({
+    player = await Promise.race([
+      shoukaku.joinVoiceChannel({
         guildId: interaction.guild.id,
         channelId: voice.id,
         shardId: 0
-      });
-    } catch (e) {
-      console.log("VOICE ERROR:", e);
-      return interaction.editReply("❌ Lavalink не отвечает / не может зайти в войс");
-    }
-
-    // 🔥 SEARCH SAFE
-    let result;
-    try {
-      result = await shoukaku.rest.resolve(`ytsearch:${query}`);
-    } catch (e) {
-      console.log("RESOLVE ERROR:", e);
-      return interaction.editReply("❌ ошибка поиска трека");
-    }
-
-    if (!result?.tracks?.length) {
-      return interaction.editReply("❌ трек не найден");
-    }
-
-    const track = result.tracks[0];
-
-    let server = queue.get(interaction.guild.id);
-
-    if (!server) {
-      server = {
-        player,
-        songs: [],
-        loop: false,
-        user: interaction.user.tag
-      };
-      queue.set(interaction.guild.id, server);
-    }
-
-    server.songs.push(track);
-
-    try {
-      if (server.songs.length === 1) {
-        await player.playTrack(track);
-
-        return interaction.editReply({
-          embeds: [nowPlaying(track, interaction.user.tag)],
-          components: [controls()]
-        });
-      }
-
-      return interaction.editReply(`➕ добавлено в очередь: **${track.info.title}**`);
-    } catch (e) {
-      console.log("PLAY ERROR:", e);
-      return interaction.editReply("❌ ошибка воспроизведения");
-    }
-
-  } catch (err) {
-    console.log("GLOBAL ERROR:", err);
-    if (!interaction.replied) {
-      await interaction.reply("❌ критическая ошибка");
-    }
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("JOIN_TIMEOUT")), 5000)
+      )
+    ]);
+  } catch (e) {
+    console.log("VOICE FAIL:", e);
+    return interaction.editReply("❌ Lavalink не отвечает (join timeout)").catch(() => {});
   }
-});
+
+  let result;
+
+  try {
+    result = await Promise.race([
+      shoukaku.rest.resolve(`ytsearch:${query}`),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("SEARCH_TIMEOUT")), 5000)
+      )
+    ]);
+  } catch (e) {
+    console.log("SEARCH FAIL:", e);
+    return interaction.editReply("❌ поиск завис").catch(() => {});
+  }
+
+  if (!result?.tracks?.length) {
+    return interaction.editReply("❌ трек не найден").catch(() => {});
+  }
+
+  const track = result.tracks[0];
+
+  try {
+    await player.playTrack(track);
+  } catch (e) {
+    console.log("PLAY FAIL:", e);
+    return interaction.editReply("❌ ошибка воспроизведения").catch(() => {});
+  }
+
+  return interaction.editReply(`🎵 играет: **${track.info.title}**`).catch(() => {});
+}
 
 // ================= BUTTONS =================
 client.on("interactionCreate", async (interaction) => {
