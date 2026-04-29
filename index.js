@@ -19,16 +19,20 @@ const client = new Client({
   ]
 });
 
-// 🎵 slash команда
+// 🎵 slash команда обработка
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'play') {
+    await interaction.deferReply(); // 🔥 ВАЖНО (фикс "did not respond")
+
     try {
       const url = interaction.options.getString('url');
 
       const voiceChannel = interaction.member.voice.channel;
-      if (!voiceChannel) return interaction.reply('❌ зайди в войс');
+      if (!voiceChannel) {
+        return interaction.editReply('❌ зайди в войс');
+      }
 
       const connection = joinVoiceChannel({
         channelId: voiceChannel.id,
@@ -36,8 +40,8 @@ client.on('interactionCreate', async (interaction) => {
         adapterCreator: interaction.guild.voiceAdapterCreator
       });
 
-      // 🔥 play-dl сам определяет SoundCloud / YouTube / etc
       const source = await play.stream(url);
+
       const resource = createAudioResource(source.stream, {
         inputType: source.type
       });
@@ -51,27 +55,27 @@ client.on('interactionCreate', async (interaction) => {
       player.play(resource);
       connection.subscribe(player);
 
-      interaction.reply('🎵 Играю музыку');
-
       player.on(AudioPlayerStatus.Idle, () => {
         connection.destroy();
       });
 
+      await interaction.editReply('🎵 Играю музыку');
+
     } catch (err) {
       console.log(err);
-      interaction.reply('❌ Ошибка воспроизведения');
+      await interaction.editReply('❌ Ошибка воспроизведения');
     }
   }
 });
 
-// 🔥 регистрация slash-команды
+// 🔥 регистрация slash команды
 const commands = [
   new SlashCommandBuilder()
     .setName('play')
-    .setDescription('Играть музыку (YouTube / SoundCloud)')
+    .setDescription('Играть музыку')
     .addStringOption(option =>
       option.setName('url')
-        .setDescription('ссылка на трек')
+        .setDescription('ссылка на YouTube или SoundCloud')
         .setRequired(true)
     )
 ].map(c => c.toJSON());
@@ -84,14 +88,14 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       Routes.applicationCommands(CLIENT_ID),
       { body: commands }
     );
-    console.log('✅ Slash команды загружены');
-  } catch (e) {
-    console.log(e);
+    console.log('✅ Slash команды зарегистрированы');
+  } catch (err) {
+    console.log(err);
   }
 });
 
 client.once('ready', () => {
-  console.log(`✅ Онлайн как ${client.user.tag}`);
+  console.log(`✅ Бот онлайн: ${client.user.tag}`);
 });
 
 client.login(TOKEN);
