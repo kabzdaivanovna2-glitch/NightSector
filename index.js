@@ -9,7 +9,7 @@ const {
 const play = require('play-dl');
 
 const TOKEN = process.env.TOKEN;
-const CLIENT_ID = "ТВОЙ_CLIENT_ID"; // ВАЖНО заменить
+const CLIENT_ID = "1499113326020399276"; // ВАЖНО заменить
 
 const client = new Client({
   intents: [
