@@ -1,6 +1,5 @@
 const { Client, GatewayIntentBits } = require('discord.js');
-
-console.log("🚀 BOT STARTING...");
+console.log("🔥 INDEX.JS STARTED");
 
 console.log("TOKEN CHECK:", process.env.TOKEN ? "OK" : "MISSING");
 
