@@ -15,6 +15,7 @@ const { Shoukaku, Connectors } = require("shoukaku");
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = "1499113326020399276";
 
+// ⚠️ твой lavalink (если он мёртв — музыка НЕ будет работать)
 const nodes = [
   {
     name: "main",
@@ -33,7 +34,7 @@ const client = new Client({
 
 const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes);
 
-// 🎧 QUEUE SYSTEM
+// 🎧 queue
 const queue = new Map();
 
 // ================= NOW PLAYING =================
@@ -42,8 +43,16 @@ function nowPlaying(track, user) {
     .setTitle("🎵 Now Playing - NightSector")
     .setDescription(`**${track.info.title}**`)
     .addFields(
-      { name: "Duration", value: `${Math.floor(track.info.length / 60000)} min`, inline: true },
-      { name: "Requested by", value: user, inline: true }
+      {
+        name: "Duration",
+        value: `${Math.floor(track.info.length / 60000)} min`,
+        inline: true
+      },
+      {
+        name: "Requested by",
+        value: user,
+        inline: true
+      }
     )
     .setColor("#6a0dad");
 }
@@ -54,61 +63,54 @@ function controls() {
     new ButtonBuilder().setCustomId("pause").setLabel("⏸").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("resume").setLabel("▶").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId("skip").setLabel("⏭").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("stop").setLabel("⏹").setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId("loop").setLabel("🔁").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("stop").setLabel("⏹").setStyle(ButtonStyle.Danger)
   );
 }
 
 // ================= READY =================
 client.once("ready", () => {
-  console.log(`🌙 NightSector PRO Online: ${client.user.tag}`);
+  console.log(`🌙 NightSector Online: ${client.user.tag}`);
 });
 
-// ================= PLAY NEXT =================
-async function playNext(guildId, channel) {
-  const server = queue.get(guildId);
-  if (!server) return;
-
-  const track = server.songs.shift();
-  if (!track) {
-    queue.delete(guildId);
-    return;
-  }
-
-  try {
-    await server.player.playTrack(track);
-
-    channel.send({
-      embeds: [nowPlaying(track, server.user)],
-      components: [controls()]
-    });
-  } catch (e) {
-    console.log(e);
-  }
-}
-
-// ================= INTERACTIONS =================
+// ================= PLAY =================
 client.on("interactionCreate", async (interaction) => {
-  const voice = interaction.member.voice.channel;
+  try {
+    if (!interaction.isChatInputCommand()) return;
 
-  // ================= PLAY =================
-  if (interaction.isChatInputCommand() && interaction.commandName === "play") {
+    if (interaction.commandName !== "play") return;
+
     await interaction.deferReply();
 
+    const voice = interaction.member.voice.channel;
     if (!voice) return interaction.editReply("❌ зайди в войс");
 
     const query = interaction.options.getString("url");
 
-    const player = await shoukaku.joinVoiceChannel({
-      guildId: interaction.guild.id,
-      channelId: voice.id,
-      shardId: 0
-    });
+    // 🔥 JOIN VOICE SAFE
+    let player;
+    try {
+      player = await shoukaku.joinVoiceChannel({
+        guildId: interaction.guild.id,
+        channelId: voice.id,
+        shardId: 0
+      });
+    } catch (e) {
+      console.log("VOICE ERROR:", e);
+      return interaction.editReply("❌ Lavalink не отвечает / не может зайти в войс");
+    }
 
-    const result = await shoukaku.rest.resolve(`ytsearch:${query}`);
+    // 🔥 SEARCH SAFE
+    let result;
+    try {
+      result = await shoukaku.rest.resolve(`ytsearch:${query}`);
+    } catch (e) {
+      console.log("RESOLVE ERROR:", e);
+      return interaction.editReply("❌ ошибка поиска трека");
+    }
 
-    if (!result?.tracks?.length)
+    if (!result?.tracks?.length) {
       return interaction.editReply("❌ трек не найден");
+    }
 
     const track = result.tracks[0];
 
@@ -126,19 +128,32 @@ client.on("interactionCreate", async (interaction) => {
 
     server.songs.push(track);
 
-    if (server.songs.length === 1) {
-      await player.playTrack(track);
+    try {
+      if (server.songs.length === 1) {
+        await player.playTrack(track);
 
-      return interaction.editReply({
-        embeds: [nowPlaying(track, interaction.user.tag)],
-        components: [controls()]
-      });
+        return interaction.editReply({
+          embeds: [nowPlaying(track, interaction.user.tag)],
+          components: [controls()]
+        });
+      }
+
+      return interaction.editReply(`➕ добавлено в очередь: **${track.info.title}**`);
+    } catch (e) {
+      console.log("PLAY ERROR:", e);
+      return interaction.editReply("❌ ошибка воспроизведения");
     }
 
-    return interaction.editReply(`➕ добавлено в очередь: **${track.info.title}**`);
+  } catch (err) {
+    console.log("GLOBAL ERROR:", err);
+    if (!interaction.replied) {
+      await interaction.reply("❌ критическая ошибка");
+    }
   }
+});
 
-  // ================= BUTTONS =================
+// ================= BUTTONS =================
+client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
 
   const server = queue.get(interaction.guild.id);
@@ -166,11 +181,6 @@ client.on("interactionCreate", async (interaction) => {
     queue.delete(interaction.guild.id);
     return interaction.reply("⏹ stopped");
   }
-
-  if (interaction.customId === "loop") {
-    server.loop = !server.loop;
-    return interaction.reply(`🔁 loop: ${server.loop}`);
-  }
 });
 
 // ================= SLASH =================
@@ -188,11 +198,15 @@ const commands = [
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 (async () => {
-  await rest.put(
-    Routes.applicationCommands(CLIENT_ID),
-    { body: commands }
-  );
-  console.log("✅ NightSector PRO commands loaded");
+  try {
+    await rest.put(
+      Routes.applicationCommands(CLIENT_ID),
+      { body: commands }
+    );
+    console.log("✅ NightSector slash loaded");
+  } catch (e) {
+    console.log("SLASH ERROR:", e);
+  }
 })();
 
 client.login(TOKEN);
