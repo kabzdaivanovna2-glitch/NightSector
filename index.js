@@ -12,13 +12,25 @@ const {
 const { Shoukaku, Connectors } = require("shoukaku");
 
 const TOKEN = process.env.TOKEN;
-const CLIENT_ID = "1499113326020399276";
+const CLIENT_ID = process.env.CLIENT_ID || "1499113326020399276";
 
-// Lavalink node (замени на свой рабочий при необходимости)
+// ================= ИСПРАВЛЕННЫЙ СПИСОК LAVALINK УЗЛОВ (рабочие) =================
 const nodes = [
   {
-    name: "main",
-    url: "lavalink.oops.wtf:2333",     // публичный тестовый лавалайн (рабочий)
+    name: "Node 1",
+    url: "lavalink-v4.radiopanel.dev:80",
+    auth: "dasgamer",
+    secure: false
+  },
+  {
+    name: "Node 2",
+    url: "lava-v4.rauf.wtf:2333",
+    auth: "https://discord.gg/zZJhGjUuUN",
+    secure: false
+  },
+  {
+    name: "Node 3",
+    url: "lavalink.vac14.tk:80",
     auth: "youshallnotpass",
     secure: false
   }
@@ -33,7 +45,7 @@ const client = new Client({
 
 const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes);
 
-// Хранилище очередей: guildId -> { player, queue: [], currentTrack, textChannel }
+// Хранилище очередей
 const queues = new Map();
 
 // ------------------- Вспомогательные функции -------------------
@@ -50,7 +62,6 @@ async function playNext(guildId) {
   if (!player) return;
 
   if (data.queue.length === 0) {
-    // Очередь пуста – отключаемся через 10 секунд
     data.currentTrack = null;
     setTimeout(async () => {
       const current = getQueue(guildId);
@@ -66,7 +77,6 @@ async function playNext(guildId) {
   data.currentTrack = nextTrack;
   await player.playTrack(nextTrack);
 
-  // Отправляем now playing в текстовый канал
   const embed = new EmbedBuilder()
     .setTitle("🎵 Now Playing")
     .setDescription(`**${nextTrack.info.title}**`)
@@ -130,7 +140,6 @@ client.on("interactionCreate", async (interaction) => {
   // ---------- Команды ----------
   const { commandName } = interaction;
 
-  // /play
   if (commandName === "play") {
     await interaction.deferReply();
 
@@ -142,7 +151,6 @@ client.on("interactionCreate", async (interaction) => {
     const query = interaction.options.getString("url");
     let player = shoukaku.players.get(interaction.guild.id);
 
-    // Если плеера нет – создаём и подключаемся
     if (!player) {
       try {
         player = await shoukaku.joinVoiceChannel({
@@ -156,7 +164,6 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    // Поиск трека
     let result;
     try {
       result = await shoukaku.rest.resolve(`ytsearch:${query}`);
@@ -173,11 +180,8 @@ client.on("interactionCreate", async (interaction) => {
     const guildQueue = getQueue(interaction.guild.id);
     guildQueue.player = player;
     guildQueue.textChannel = interaction.channel;
-
-    // Добавляем информацию о запросившем
     track.requester = interaction.user.tag;
 
-    // Если ничего не играет – стартуем сразу
     if (!guildQueue.currentTrack && !player.playing) {
       guildQueue.currentTrack = track;
       await player.playTrack(track);
@@ -197,13 +201,10 @@ client.on("interactionCreate", async (interaction) => {
       );
       await interaction.editReply({ embeds: [embed], components: [row] });
     } else {
-      // Добавляем в очередь
       guildQueue.queue.push(track);
       await interaction.editReply(`✅ **${track.info.title}** добавлен в очередь. Позиция: ${guildQueue.queue.length}`);
     }
   }
-
-  // /skip
   else if (commandName === "skip") {
     await interaction.deferReply();
     const player = shoukaku.players.get(interaction.guild.id);
@@ -213,8 +214,6 @@ client.on("interactionCreate", async (interaction) => {
     await player.stopTrack();
     interaction.editReply("⏭ Трек пропущен.");
   }
-
-  // /stop
   else if (commandName === "stop") {
     await interaction.deferReply();
     const player = shoukaku.players.get(interaction.guild.id);
@@ -223,8 +222,6 @@ client.on("interactionCreate", async (interaction) => {
     queues.delete(interaction.guild.id);
     interaction.editReply("⏹ Музыка остановлена, очередь очищена.");
   }
-
-  // /pause
   else if (commandName === "pause") {
     await interaction.deferReply();
     const player = shoukaku.players.get(interaction.guild.id);
@@ -232,8 +229,6 @@ client.on("interactionCreate", async (interaction) => {
     await player.setPaused(true);
     interaction.editReply("⏸ Пауза.");
   }
-
-  // /resume
   else if (commandName === "resume") {
     await interaction.deferReply();
     const player = shoukaku.players.get(interaction.guild.id);
@@ -241,8 +236,6 @@ client.on("interactionCreate", async (interaction) => {
     await player.setPaused(false);
     interaction.editReply("▶ Продолжаю.");
   }
-
-  // /queue
   else if (commandName === "queue") {
     await interaction.deferReply();
     const data = getQueue(interaction.guild.id);
@@ -258,7 +251,7 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// ------------------- События плеера (конец трека, ошибка) -------------------
+// ------------------- События плеера -------------------
 shoukaku.on("trackEnd", (player, track, reason) => {
   if (reason === "REPLACED") return;
   const guildId = player.connection.guildId;
@@ -269,7 +262,7 @@ shoukaku.on("error", (_, error) => {
   console.error("Lavalink error:", error);
 });
 
-// ------------------- Регистрация slash-команд -------------------
+// ------------------- Регистрация команд -------------------
 const commands = [
   new SlashCommandBuilder().setName("play").setDescription("Включить музыку").addStringOption(opt => opt.setName("url").setDescription("Название трека или ссылка").setRequired(true)),
   new SlashCommandBuilder().setName("skip").setDescription("Пропустить текущий трек"),
