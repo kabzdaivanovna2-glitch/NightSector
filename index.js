@@ -4,7 +4,7 @@ const { Shoukaku, Connectors } = require('shoukaku');
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = "1499113326020399276";
 
-// 🔥 Lavalink node
+// ⚠️ ВРЕМЕННОЙ NODE (если он мёртв — всё равно будет ошибка, но бот не упадёт)
 const nodes = [
   {
     name: "main",
@@ -23,20 +23,20 @@ const client = new Client({
 
 const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes);
 
-// 📡 Lavalink status
+// 📡 статус Lavalink
 shoukaku.on("ready", () => {
   console.log("✅ Lavalink подключен");
 });
 
 shoukaku.on("error", (name, err) => {
-  console.log("❌ Lavalink error:", err);
+  console.log("❌ Lavalink error:", err.message || err);
 });
 
 client.once("ready", () => {
   console.log(`✅ Bot online: ${client.user.tag}`);
 });
 
-// 🎵 PLAY COMMAND
+// 🎵 PLAY
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -50,30 +50,42 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.editReply("❌ зайди в войс");
     }
 
+    let player;
+
     try {
-      const player = await shoukaku.joinVoiceChannel({
+      player = await shoukaku.joinVoiceChannel({
         guildId: interaction.guild.id,
         channelId: voice.id,
         shardId: 0
       });
-
-      // 🔥 УЛУЧШЕННЫЙ ПОИСК (ВАЖНО)
-      const result = await shoukaku.rest.resolve(`ytsearch:${query}`);
-
-      if (!result || !result.tracks || result.tracks.length === 0) {
-        return interaction.editReply("❌ трек не найден (попробуй другое название)");
-      }
-
-      const track = result.tracks[0];
-
-      await player.playTrack(track);
-
-      return interaction.editReply(`🎵 играет: **${track.info.title}**`);
-
-    } catch (err) {
-      console.log("PLAY ERROR:", err);
-      return interaction.editReply("❌ не удалось запустить трек (ошибка Lavalink)");
+    } catch (e) {
+      console.log("VOICE JOIN ERROR:", e);
+      return interaction.editReply("❌ не удалось зайти в войс (Lavalink не отвечает)");
     }
+
+    let result;
+
+    try {
+      result = await shoukaku.rest.resolve(`ytsearch:${query}`);
+    } catch (e) {
+      console.log("RESOLVE ERROR:", e);
+      return interaction.editReply("❌ поиск трека не работает (Lavalink)");
+    }
+
+    if (!result?.tracks?.length) {
+      return interaction.editReply("❌ трек не найден");
+    }
+
+    const track = result.tracks[0];
+
+    try {
+      await player.playTrack(track);
+    } catch (e) {
+      console.log("PLAY ERROR:", e);
+      return interaction.editReply("❌ ошибка воспроизведения (сервер недоступен)");
+    }
+
+    return interaction.editReply(`🎵 играет: **${track.info.title}**`);
   }
 });
 
