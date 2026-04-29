@@ -4,7 +4,7 @@ const { Shoukaku, Connectors } = require('shoukaku');
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = "1499113326020399276";
 
-// 🔥 РАБОЧИЙ LAVALINK NODE
+// 🔥 Lavalink node
 const nodes = [
   {
     name: "main",
@@ -23,7 +23,7 @@ const client = new Client({
 
 const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes);
 
-// 📡 events
+// 📡 Lavalink status
 shoukaku.on("ready", () => {
   console.log("✅ Lavalink подключен");
 });
@@ -36,7 +36,7 @@ client.once("ready", () => {
   console.log(`✅ Bot online: ${client.user.tag}`);
 });
 
-// 🎵 PLAY
+// 🎵 PLAY COMMAND
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -46,7 +46,9 @@ client.on("interactionCreate", async (interaction) => {
     const query = interaction.options.getString("url");
     const voice = interaction.member.voice.channel;
 
-    if (!voice) return interaction.editReply("❌ зайди в войс");
+    if (!voice) {
+      return interaction.editReply("❌ зайди в войс");
+    }
 
     try {
       const player = await shoukaku.joinVoiceChannel({
@@ -55,10 +57,12 @@ client.on("interactionCreate", async (interaction) => {
         shardId: 0
       });
 
+      // 🔥 УЛУЧШЕННЫЙ ПОИСК (ВАЖНО)
       const result = await shoukaku.rest.resolve(`ytsearch:${query}`);
 
-      if (!result?.tracks?.length)
-        return interaction.editReply("❌ трек не найден");
+      if (!result || !result.tracks || result.tracks.length === 0) {
+        return interaction.editReply("❌ трек не найден (попробуй другое название)");
+      }
 
       const track = result.tracks[0];
 
@@ -67,8 +71,8 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.editReply(`🎵 играет: **${track.info.title}**`);
 
     } catch (err) {
-      console.log(err);
-      return interaction.editReply("❌ ошибка воспроизведения");
+      console.log("PLAY ERROR:", err);
+      return interaction.editReply("❌ не удалось запустить трек (ошибка Lavalink)");
     }
   }
 });
@@ -88,11 +92,15 @@ const commands = [
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 (async () => {
-  await rest.put(
-    Routes.applicationCommands(CLIENT_ID),
-    { body: commands }
-  );
-  console.log("✅ slash готов");
+  try {
+    await rest.put(
+      Routes.applicationCommands(CLIENT_ID),
+      { body: commands }
+    );
+    console.log("✅ slash готов");
+  } catch (e) {
+    console.log("SLASH ERROR:", e);
+  }
 })();
 
 client.login(TOKEN);
