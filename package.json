@@ -12,3 +12,9 @@
     "@discordjs/opus": "^0.9.0"
   }
 }
+{
+  "dependencies": {
+    "discord.js": "^14.0.0",
+    "shoukaku": "^4.1.0"
+  }
+}
