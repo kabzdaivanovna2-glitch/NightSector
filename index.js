@@ -1,91 +1,15 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
-const {
-  joinVoiceChannel,
-  createAudioPlayer,
-  createAudioResource,
-  AudioPlayerStatus
-} = require('@discordjs/voice');
+const { Client, GatewayIntentBits } = require('discord.js');
 
-const play = require('play-dl');
+console.log("🚀 BOT STARTING...");
 
-const TOKEN = process.env.TOKEN;
-const CLIENT_ID = "1499113326020399276";
+console.log("TOKEN CHECK:", process.env.TOKEN ? "OK" : "MISSING");
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildVoiceStates
-  ]
+  intents: [GatewayIntentBits.Guilds]
 });
-
-// 🎵 slash команда обработка
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
-
-  if (interaction.commandName === 'play') {
-    await interaction.deferReply();
-
-    const url = interaction.options.getString('url');
-    const voice = interaction.member.voice.channel;
-
-    if (!voice) {
-      return interaction.editReply('❌ зайди в войс');
-    }
-
-    try {
-      const connection = joinVoiceChannel({
-        channelId: voice.id,
-        guildId: interaction.guild.id,
-        adapterCreator: interaction.guild.voiceAdapterCreator
-      });
-
-      const stream = await play.stream(url);
-      const resource = createAudioResource(stream.stream, {
-        inputType: stream.type
-      });
-
-      const player = createAudioPlayer();
-      player.play(resource);
-
-      connection.subscribe(player);
-
-      player.on(AudioPlayerStatus.Idle, () => {
-        connection.destroy();
-      });
-
-      await interaction.editReply('🎵 играет музыка');
-
-    } catch (err) {
-      console.log(err);
-      await interaction.editReply('❌ не удалось воспроизвести трек');
-    }
-  }
-});
-
-// 🔥 регистрация slash команды
-const commands = [
-  new SlashCommandBuilder()
-    .setName('play')
-    .setDescription('включить музыку')
-    .addStringOption(option =>
-      option.setName('url')
-        .setDescription('ссылка на трек')
-        .setRequired(true)
-    )
-].map(c => c.toJSON());
-
-const rest = new REST({ version: '10' }).setToken(TOKEN);
-
-(async () => {
-  await rest.put(
-    Routes.applicationCommands(CLIENT_ID),
-    { body: commands }
-  );
-  console.log('✅ Slash команды загружены');
-})();
 
 client.once('ready', () => {
-  console.log(`✅ Бот онлайн: ${client.user.tag}`);
+  console.log("✅ BOT IS ONLINE:", client.user.tag);
 });
 
-client.login(TOKEN);
+client.login(process.env.TOKEN);
