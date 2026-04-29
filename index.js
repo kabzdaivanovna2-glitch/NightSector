@@ -1,5 +1,23 @@
+const { Client, GatewayIntentBits } = require('discord.js');
 
-git commit -m "bot"
-git branch -M main
-git remote add origin https://github.com/ТВОЙ_НИК/discord-music-bot.git
-git push -u origin main
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
+
+const TOKEN = process.env.TOKEN;
+
+client.on('ready', () => {
+  console.log(`Бот запущен как ${client.user.tag}`);
+});
+
+client.on('messageCreate', (message) => {
+  if (message.content === '!ping') {
+    message.reply('pong 🏓');
+  }
+});
+
+client.login(TOKEN);
