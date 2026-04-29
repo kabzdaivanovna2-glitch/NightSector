@@ -3,8 +3,7 @@ const {
   joinVoiceChannel,
   createAudioPlayer,
   createAudioResource,
-  AudioPlayerStatus,
-  NoSubscriberBehavior
+  AudioPlayerStatus
 } = require('@discordjs/voice');
 
 const play = require('play-dl');
@@ -19,71 +18,58 @@ const client = new Client({
   ]
 });
 
-// 🎵 ОБРАБОТКА SLASH КОМАНД
+// 🎵 slash команда обработка
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
-
-  console.log("INTERACTION:", interaction.commandName);
 
   if (interaction.commandName === 'play') {
     await interaction.deferReply();
 
     const url = interaction.options.getString('url');
+    const voice = interaction.member.voice.channel;
 
-    const voiceChannel = interaction.member.voice.channel;
-    if (!voiceChannel) {
+    if (!voice) {
       return interaction.editReply('❌ зайди в войс');
     }
 
     try {
       const connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
+        channelId: voice.id,
         guildId: interaction.guild.id,
         adapterCreator: interaction.guild.voiceAdapterCreator
       });
 
-      let source;
-      try {
-        source = await play.stream(url);
-      } catch (e) {
-        console.log("STREAM ERROR:", e);
-        return interaction.editReply('❌ не удалось получить аудио');
-      }
-
-      const resource = createAudioResource(source.stream, {
-        inputType: source.type
+      const stream = await play.stream(url);
+      const resource = createAudioResource(stream.stream, {
+        inputType: stream.type
       });
 
-      const player = createAudioPlayer({
-        behaviors: {
-          noSubscriber: NoSubscriberBehavior.Play
-        }
-      });
-
+      const player = createAudioPlayer();
       player.play(resource);
+
       connection.subscribe(player);
 
       player.on(AudioPlayerStatus.Idle, () => {
         connection.destroy();
       });
 
-      return interaction.editReply('🎵 играет музыка');
+      await interaction.editReply('🎵 играет музыка');
 
     } catch (err) {
-      console.log("PLAY ERROR:", err);
-      return interaction.editReply('❌ ошибка воспроизведения');
+      console.log(err);
+      await interaction.editReply('❌ не удалось воспроизвести трек');
     }
   }
 });
 
-// 🔥 регистрация slash команд
+// 🔥 регистрация slash команды
 const commands = [
   new SlashCommandBuilder()
     .setName('play')
-    .setDescription('Играть музыку')
+    .setDescription('включить музыку')
     .addStringOption(option =>
       option.setName('url')
-        .setDescription('ссылка YouTube или SoundCloud')
+        .setDescription('ссылка на трек')
         .setRequired(true)
     )
 ].map(c => c.toJSON());
@@ -91,16 +77,12 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
-  try {
-    await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
-      { body: commands }
-    );
-    console.log('✅ Slash команды зарегистрированы');
-  } catch (err) {
-    console.log(err);
-  }
-});
+  await rest.put(
+    Routes.applicationCommands(CLIENT_ID),
+    { body: commands }
+  );
+  console.log('✅ Slash команды загружены');
+})();
 
 client.once('ready', () => {
   console.log(`✅ Бот онлайн: ${client.user.tag}`);
