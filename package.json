@@ -1,11 +1,14 @@
 {
-  "name": "bot",
+  "name": "music-bot",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "discord.js": "^14.14.1"
+    "discord.js": "^14.14.1",
+    "distube": "^4.0.4",
+    "@distube/ytdl-core": "^4.0.4",
+    "ytdl-core": "^4.11.5"
   }
 }
