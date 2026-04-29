@@ -40,7 +40,19 @@ client.on('interactionCreate', async (interaction) => {
         adapterCreator: interaction.guild.voiceAdapterCreator
       });
 
-      const stream = await play.stream(url);
+      let stream;
+
+      try {
+        stream = await Promise.race([
+          play.stream(url),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 8000)
+          )
+        ]);
+      } catch (e) {
+        console.log("STREAM ERROR:", e);
+        return interaction.editReply('❌ не удалось получить аудио');
+      }
 
       const resource = createAudioResource(stream.stream, {
         inputType: stream.type
@@ -59,11 +71,11 @@ client.on('interactionCreate', async (interaction) => {
         connection.destroy();
       });
 
-      await interaction.editReply('🎵 играет музыка');
+      return interaction.editReply('🎵 играет музыка');
 
     } catch (err) {
-      console.log(err);
-      await interaction.editReply('❌ ошибка воспроизведения');
+      console.log("PLAY ERROR:", err);
+      return interaction.editReply('❌ ошибка воспроизведения');
     }
   }
 });
