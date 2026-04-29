@@ -1,16 +1,18 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
-const {
-  joinVoiceChannel,
-  createAudioPlayer,
-  createAudioResource,
-  AudioPlayerStatus,
-  NoSubscriberBehavior
-} = require('@discordjs/voice');
-
-const play = require('play-dl');
+const { Shoukaku, Connectors } = require('shoukaku');
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = "1499113326020399276";
+
+// 👉 Lavalink сервер (публичный тестовый)
+const nodes = [
+  {
+    name: "main",
+    url: "lavalink.oops.wtf:443",
+    auth: "www.freelavalink.ga",
+    secure: true
+  }
+];
 
 const client = new Client({
   intents: [
@@ -19,78 +21,51 @@ const client = new Client({
   ]
 });
 
-// 🎵 обработка slash-команд
+const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), nodes);
+
+client.on('ready', () => {
+  console.log(`✅ Бот онлайн: ${client.user.tag}`);
+});
+
+// 🎵 PLAY COMMAND
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'play') {
     await interaction.deferReply();
 
-    const url = interaction.options.getString('url');
+    const query = interaction.options.getString('url');
     const voice = interaction.member.voice.channel;
 
-    if (!voice) {
-      return interaction.editReply('❌ зайди в войс');
-    }
+    if (!voice) return interaction.editReply("❌ зайди в войс");
 
-    try {
-      const connection = joinVoiceChannel({
-        channelId: voice.id,
-        guildId: interaction.guild.id,
-        adapterCreator: interaction.guild.voiceAdapterCreator
-      });
+    const player = await shoukaku.joinVoiceChannel({
+      guildId: interaction.guild.id,
+      channelId: voice.id,
+      shardId: 0
+    });
 
-      // 🔥 ИСПРАВЛЕННЫЙ STREAM (ВАЖНО)
-      let stream;
+    const result = await shoukaku.rest.resolve(query);
 
-      try {
-        const info = await play.video_info(url).catch(() => null);
+    if (!result?.tracks.length)
+      return interaction.editReply("❌ трек не найден");
 
-        if (info) {
-          stream = await play.stream_from_info(info.video_details.url);
-        } else {
-          stream = await play.stream(url);
-        }
+    const track = result.tracks[0];
 
-      } catch (e) {
-        console.log("STREAM ERROR:", e);
-        return interaction.editReply('❌ не удалось загрузить трек (ссылка не поддерживается)');
-      }
+    player.playTrack(track);
 
-      const resource = createAudioResource(stream.stream, {
-        inputType: stream.type
-      });
-
-      const player = createAudioPlayer({
-        behaviors: {
-          noSubscriber: NoSubscriberBehavior.Play
-        }
-      });
-
-      player.play(resource);
-      connection.subscribe(player);
-
-      player.on(AudioPlayerStatus.Idle, () => {
-        connection.destroy();
-      });
-
-      return interaction.editReply('🎵 играет музыка');
-
-    } catch (err) {
-      console.log("PLAY ERROR:", err);
-      return interaction.editReply('❌ ошибка воспроизведения');
-    }
+    return interaction.editReply("🎵 играет музыка");
   }
 });
 
-// 🔥 регистрация slash-команды
+// 🔥 slash команда
 const commands = [
   new SlashCommandBuilder()
     .setName('play')
-    .setDescription('включить музыку')
-    .addStringOption(option =>
-      option.setName('url')
-        .setDescription('ссылка на SoundCloud или YouTube')
+    .setDescription('играть музыку')
+    .addStringOption(opt =>
+      opt.setName('url')
+        .setDescription('ссылка или название')
         .setRequired(true)
     )
 ].map(c => c.toJSON());
@@ -98,19 +73,11 @@ const commands = [
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
-  try {
-    await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
-      { body: commands }
-    );
-    console.log('✅ Slash команды зарегистрированы');
-  } catch (err) {
-    console.log(err);
-  }
-});
-
-client.once('ready', () => {
-  console.log(`✅ Бот онлайн: ${client.user.tag}`);
-});
+  await rest.put(
+    Routes.applicationCommands(CLIENT_ID),
+    { body: commands }
+  );
+  console.log("✅ Slash команды загружены");
+})();
 
 client.login(TOKEN);
