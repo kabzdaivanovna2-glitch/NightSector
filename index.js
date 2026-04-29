@@ -17,51 +17,52 @@ const client = new Client({
   ]
 });
 
-const TOKEN = process.env.TOKEN;
-
 client.once('ready', () => {
-  console.log(`✅ Онлайн как ${client.user.tag}`);
+  console.log(`Бот онлайн: ${client.user.tag}`);
 });
 
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  // !play <url>
   if (message.content.startsWith('!play')) {
-    const url = message.content.split(' ')[1];
-    if (!url) return message.reply('Дай ссылку на YouTube');
+    try {
+      const url = message.content.split(' ')[1];
+      if (!url) return message.reply('❌ Дай ссылку');
 
-    const voiceChannel = message.member.voice.channel;
-    if (!voiceChannel) return message.reply('Зайди в войс сначала');
+      const voiceChannel = message.member.voice.channel;
+      if (!voiceChannel) return message.reply('❌ Зайди в войс');
 
-    const connection = joinVoiceChannel({
-      channelId: voiceChannel.id,
-      guildId: message.guild.id,
-      adapterCreator: message.guild.voiceAdapterCreator
-    });
+      const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator
+      });
 
-    const stream = await play.stream(url);
-    const resource = createAudioResource(stream.stream, {
-      inputType: stream.type
-    });
+      const stream = await play.stream(url);
+      const resource = createAudioResource(stream.stream, {
+        inputType: stream.type
+      });
 
-    const player = createAudioPlayer({
-      behaviors: {
-        noSubscriber: NoSubscriberBehavior.Play
-      }
-    });
+      const player = createAudioPlayer({
+        behaviors: {
+          noSubscriber: NoSubscriberBehavior.Play
+        }
+      });
 
-    player.play(resource);
-    connection.subscribe(player);
+      player.play(resource);
+      connection.subscribe(player);
 
-    player.on(AudioPlayerStatus.Idle, () => {
-      connection.destroy();
-    });
+      player.on(AudioPlayerStatus.Idle, () => {
+        connection.destroy();
+      });
 
-    message.reply('🎵 Играю музыку');
+      message.reply('🎵 Играю музыку');
+    } catch (err) {
+      console.log(err);
+      message.reply('❌ Ошибка воспроизведения');
+    }
   }
 
-  // !stop
   if (message.content === '!stop') {
     const voiceChannel = message.member.voice.channel;
     if (!voiceChannel) return;
@@ -73,8 +74,8 @@ client.on('messageCreate', async (message) => {
     });
 
     connection.destroy();
-    message.reply('⛔ Остановлено');
+    message.reply('⛔ Стоп');
   }
 });
 
-client.login(TOKEN);
+client.login(process.env.TOKEN);
