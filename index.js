@@ -1,6 +1,5 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const { DisTube } = require("distube");
-const { YtDlpPlugin } = require("@distube/ytdl-core");
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID || "1499113326020399276";
@@ -13,8 +12,7 @@ client.distube = new DisTube(client, {
   leaveOnStop: true,
   leaveOnFinish: true,
   emitNewSongOnly: true,
-  youtubeDL: false,
-  plugins: [new YtDlpPlugin()]
+  youtubeDL: true   // использует ytdl-core (он уже установлен)
 });
 
 client.once("ready", () => {
@@ -23,7 +21,6 @@ client.once("ready", () => {
 
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
-
   const { commandName } = interaction;
 
   if (commandName === "play") {
@@ -35,6 +32,7 @@ client.on("interactionCreate", async (interaction) => {
       await client.distube.play(voiceChannel, query, { textChannel: interaction.channel, member: interaction.member });
       interaction.editReply(`🎵 Ищу и играю: **${query}**`);
     } catch (e) {
+      console.error(e);
       interaction.editReply("❌ Ошибка воспроизведения");
     }
   }
