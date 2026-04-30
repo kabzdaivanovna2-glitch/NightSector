@@ -10,18 +10,25 @@ const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID || "1499113326020399276";
 
 if (!TOKEN) {
-  console.error("❌ TOKEN не задан. Добавь TOKEN в Secrets.");
+  console.error("❌ TOKEN не задан. Добавь TOKEN в переменные окружения.");
   process.exit(1);
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessages
+  ]
 });
 
 client.distube = new DisTube(client, {
   emitNewSongOnly: true,
   ffmpeg: { path: ffmpegPath },
-  plugins: [new SoundCloudPlugin(), new YtDlpPlugin()]
+  plugins: [
+    new SoundCloudPlugin(),
+    new YtDlpPlugin({ update: false })
+  ]
 });
 
 client.once("ready", () => {
@@ -34,11 +41,20 @@ client.on("interactionCreate", async (interaction) => {
 
   if (commandName === "play") {
     const voiceChannel = interaction.member.voice.channel;
-    if (!voiceChannel) return interaction.reply("❌ Зайди в голосовой канал");
+    if (!voiceChannel) return interaction.reply({ content: "❌ Зайди в голосовой канал", ephemeral: true });
+
+    const perms = voiceChannel.permissionsFor(interaction.guild.members.me);
+    if (!perms.has("Connect") || !perms.has("Speak")) {
+      return interaction.reply({ content: "❌ У меня нет прав на подключение к этому каналу", ephemeral: true });
+    }
+
     const query = interaction.options.getString("query");
     await interaction.deferReply();
     try {
-      await client.distube.play(voiceChannel, query, { textChannel: interaction.channel, member: interaction.member });
+      await client.distube.play(voiceChannel, query, {
+        textChannel: interaction.channel,
+        member: interaction.member
+      });
       interaction.editReply(`🎵 Ищу и играю: **${query}**`);
     } catch (e) {
       console.error(e);
@@ -49,8 +65,12 @@ client.on("interactionCreate", async (interaction) => {
   if (commandName === "skip") {
     const queue = client.distube.getQueue(interaction.guild);
     if (!queue) return interaction.reply("❌ Ничего не играет");
-    await client.distube.skip(interaction.guild);
-    interaction.reply("⏭ Пропущено");
+    try {
+      await client.distube.skip(interaction.guild);
+      interaction.reply("⏭ Пропущено");
+    } catch (e) {
+      interaction.reply(`❌ Ошибка: ${e.message}`);
+    }
   }
 
   if (commandName === "stop") {
@@ -77,34 +97,66 @@ client.on("interactionCreate", async (interaction) => {
   if (commandName === "queue") {
     const queue = client.distube.getQueue(interaction.guild);
     if (!queue) return interaction.reply("📭 Очередь пуста");
+    const list = queue.songs
+      .slice(0, 10)
+      .map((s, i) => `${i + 1}. ${s.name} — \`${s.formattedDuration}\``)
+      .join("\n");
     const embed = new EmbedBuilder()
       .setTitle("🎵 Очередь")
-      .setDescription(queue.songs.map((s, i) => `${i+1}. ${s.name} - \`${s.formattedDuration}\``).slice(0,10).join("\n") || "Пусто")
+      .setDescription(list || "Пусто")
       .setColor("#6a0dad");
     interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === "volume") {
+    const queue = client.distube.getQueue(interaction.guild);
+    if (!queue) return interaction.reply("❌ Ничего не играет");
+    const vol = interaction.options.getInteger("level");
+    await client.distube.setVolume(interaction.guild, vol);
+    interaction.reply(`🔊 Громкость: **${vol}%**`);
   }
 });
 
 client.distube.on("playSong", (queue, song) => {
   const embed = new EmbedBuilder()
     .setTitle("🎶 Сейчас играет")
-    .setDescription(`**${song.name}**`)
+    .setDescription(`**${song.name}**\n⏱ Длительность: \`${song.formattedDuration}\``)
+    .setThumbnail(song.thumbnail)
     .setColor("#6a0dad");
-  queue.textChannel.send({ embeds: [embed] });
+  queue.textChannel?.send({ embeds: [embed] });
+});
+
+client.distube.on("addSong", (queue, song) => {
+  queue.textChannel?.send(`✅ Добавлено в очередь: **${song.name}**`);
 });
 
 client.distube.on("error", (channel, error) => {
   console.error("DisTube error:", error);
-  if (channel) channel.send("❌ Ошибка при воспроизведении.");
+  if (channel) channel.send(`❌ Ошибка при воспроизведении: ${error.message}`);
+});
+
+client.distube.on("finish", (queue) => {
+  queue.textChannel?.send("✅ Очередь закончилась. До встречи! 👋");
 });
 
 const commands = [
-  new SlashCommandBuilder().setName("play").setDescription("Включить музыку").addStringOption(opt => opt.setName("query").setDescription("Название или ссылка").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("play")
+    .setDescription("Включить музыку")
+    .addStringOption(opt =>
+      opt.setName("query").setDescription("Название или ссылка").setRequired(true)
+    ),
   new SlashCommandBuilder().setName("skip").setDescription("Пропустить трек"),
   new SlashCommandBuilder().setName("stop").setDescription("Остановить музыку"),
   new SlashCommandBuilder().setName("pause").setDescription("Пауза"),
   new SlashCommandBuilder().setName("resume").setDescription("Снять паузу"),
-  new SlashCommandBuilder().setName("queue").setDescription("Показать очередь")
+  new SlashCommandBuilder().setName("queue").setDescription("Показать очередь"),
+  new SlashCommandBuilder()
+    .setName("volume")
+    .setDescription("Изменить громкость (0–100)")
+    .addIntegerOption(opt =>
+      opt.setName("level").setDescription("Уровень громкости").setRequired(true).setMinValue(0).setMaxValue(100)
+    )
 ].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
