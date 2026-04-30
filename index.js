@@ -10,7 +10,6 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages]
 });
 
-// Настраиваем DisTube с плагинами для YouTube и SoundCloud
 client.distube = new DisTube(client, {
   leaveOnStop: true,
   leaveOnFinish: true,
@@ -35,7 +34,7 @@ client.on("interactionCreate", async (interaction) => {
       await client.distube.play(voiceChannel, query, { textChannel: interaction.channel, member: interaction.member });
       interaction.editReply(`🎵 Ищу и играю: **${query}**`);
     } catch (e) {
-      console.error("Ошибка воспроизведения:", e);
+      console.error(e);
       interaction.editReply(`❌ Ошибка: ${e.message}`);
     }
   }
@@ -89,7 +88,7 @@ client.distube.on("playSong", (queue, song) => {
 
 client.distube.on("error", (channel, error) => {
   console.error("DisTube error:", error);
-  if (channel) channel.send("❌ Произошла ошибка при воспроизведении.");
+  if (channel) channel.send("❌ Ошибка при воспроизведении.");
 });
 
 const commands = [
