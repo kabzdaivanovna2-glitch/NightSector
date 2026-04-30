@@ -8,10 +8,11 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages]
 });
 
+// ✅ ИСПРАВЛЕНО: убрал leaveOnStop
 client.distube = new DisTube(client, {
-  leaveOnStop: true,
-  leaveOnFinish: true,
+  leaveOnFinish: true,    // выходит когда очередь закончена
   emitNewSongOnly: true
+  // leaveOnStop больше нет в v5
 });
 
 client.once("ready", () => {
