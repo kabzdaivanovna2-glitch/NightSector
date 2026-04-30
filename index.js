@@ -8,7 +8,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages]
 });
 
-// Параметры DisTube без youtubeDL (теперь не нужно)
+// Убрали youtubeDL — теперь это не нужно
 client.distube = new DisTube(client, {
   leaveOnStop: true,
   leaveOnFinish: true,
