@@ -1,7 +1,5 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const { DisTube } = require("distube");
-const { YtDlpPlugin } = require("@distube/ytdl-core");
-const { SoundCloudPlugin } = require("@distube/soundcloud");
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID || "1499113326020399276";
@@ -13,8 +11,7 @@ const client = new Client({
 client.distube = new DisTube(client, {
   leaveOnStop: true,
   leaveOnFinish: true,
-  emitNewSongOnly: true,
-  plugins: [new YtDlpPlugin(), new SoundCloudPlugin()]
+  emitNewSongOnly: true
 });
 
 client.once("ready", () => {
