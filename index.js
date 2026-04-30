@@ -8,11 +8,11 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages]
 });
 
+// Параметры DisTube без youtubeDL (теперь не нужно)
 client.distube = new DisTube(client, {
   leaveOnStop: true,
   leaveOnFinish: true,
-  emitNewSongOnly: true,
-  youtubeDL: true   // использует ytdl-core (он уже установлен)
+  emitNewSongOnly: true
 });
 
 client.once("ready", () => {
