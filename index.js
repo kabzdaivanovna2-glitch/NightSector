@@ -2,6 +2,7 @@ const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuild
 const { DisTube } = require("distube");
 const { YtDlpPlugin } = require("@distube/yt-dlp");
 const { SoundCloudPlugin } = require("@distube/soundcloud");
+const ffmpegPath = require("ffmpeg-static");
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID || "1499113326020399276";
@@ -17,6 +18,7 @@ const client = new Client({
 
 client.distube = new DisTube(client, {
   emitNewSongOnly: true,
+  ffmpeg: { path: ffmpegPath },
   plugins: [new SoundCloudPlugin(), new YtDlpPlugin()]
 });
 
