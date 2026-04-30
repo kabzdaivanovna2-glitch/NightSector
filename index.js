@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const { DisTube } = require("distube");
 const { YtDlpPlugin } = require("@distube/ytdl-core");
+const { SoundCloudPlugin } = require("@distube/soundcloud");
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID || "1499113326020399276";
@@ -9,11 +10,12 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages]
 });
 
+// Настраиваем DisTube с плагинами для YouTube и SoundCloud
 client.distube = new DisTube(client, {
   leaveOnStop: true,
   leaveOnFinish: true,
   emitNewSongOnly: true,
-  plugins: [new YtDlpPlugin()]   // правильно подключаем плагин для YouTube
+  plugins: [new YtDlpPlugin(), new SoundCloudPlugin()]
 });
 
 client.once("ready", () => {
