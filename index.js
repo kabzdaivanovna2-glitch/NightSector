@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const { DisTube } = require("distube");
+const { YtDlpPlugin } = require("@distube/ytdl-core");
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID || "1499113326020399276";
@@ -8,11 +9,11 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages]
 });
 
-// Убрали youtubeDL — теперь это не нужно
 client.distube = new DisTube(client, {
   leaveOnStop: true,
   leaveOnFinish: true,
-  emitNewSongOnly: true
+  emitNewSongOnly: true,
+  plugins: [new YtDlpPlugin()]   // правильно подключаем плагин для YouTube
 });
 
 client.once("ready", () => {
@@ -32,8 +33,8 @@ client.on("interactionCreate", async (interaction) => {
       await client.distube.play(voiceChannel, query, { textChannel: interaction.channel, member: interaction.member });
       interaction.editReply(`🎵 Ищу и играю: **${query}**`);
     } catch (e) {
-      console.error(e);
-      interaction.editReply("❌ Ошибка воспроизведения");
+      console.error("Ошибка воспроизведения:", e);
+      interaction.editReply(`❌ Ошибка: ${e.message}`);
     }
   }
 
@@ -82,6 +83,11 @@ client.distube.on("playSong", (queue, song) => {
     .setDescription(`**${song.name}**`)
     .setColor("#6a0dad");
   queue.textChannel.send({ embeds: [embed] });
+});
+
+client.distube.on("error", (channel, error) => {
+  console.error("DisTube error:", error);
+  if (channel) channel.send("❌ Произошла ошибка при воспроизведении.");
 });
 
 const commands = [
